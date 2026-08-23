@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!-- License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<templates xml:space="preserve">
+    <t
+        t-name="voip_oca_honest_timer.Call"
+        t-inherit="voip_oca.Call"
+        t-inherit-mode="extension"
+    >
+        <!-- Replace the always-"In call for: MM:SS" line with a state-aware one. -->
+        <xpath expr="//span[@class='mt-2 small']" position="replace">
+            <span class="mt-2 small">
+                <t t-esc="callStatus" />
+            </span>
+        </xpath>
+    </t>
+</templates>

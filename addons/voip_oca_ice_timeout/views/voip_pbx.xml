@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!-- License AGPL-3.0 or later (https://www.gnu.org/licenses/agpl). -->
+<odoo>
+    <record model="ir.ui.view" id="voip_pbx_form_view_ice">
+        <field name="model">voip.pbx</field>
+        <field name="inherit_id" ref="voip_oca.voip_pbx_form_view" />
+        <field name="arch" type="xml">
+            <field name="mode" position="after">
+                <field name="ice_gathering_timeout" />
+            </field>
+        </field>
+    </record>
+</odoo>
