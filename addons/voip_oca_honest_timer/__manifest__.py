@@ -4,7 +4,7 @@
     "name": "Voip OCA: Honest Call Status",
     "summary": "State-aware call status line (Ringing/On hold) and a duration "
     "counted from the real answer, not from dial time",
-    "version": "19.0.1.0.0",
+    "version": "18.0.1.0.0",
     "author": "WDMarais",
     "website": "https://github.com/OCA/connector-telephony",
     "license": "AGPL-3",
