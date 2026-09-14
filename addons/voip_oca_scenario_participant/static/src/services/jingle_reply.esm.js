@@ -93,12 +93,41 @@ function createScenarioState() {
 }
 
 patch(VoipAgent.prototype, {
+    connectAgent(...args) {
+        this._odooScenarioInstallAudioArm();
+        return super.connectAgent(...args);
+    },
+
+    playTone(tone) {
+        // voip_oca leaves this promise unobserved. Browser autoplay policy must
+        // be a test prerequisite, not an UncaughtPromiseError that aborts INVITE.
+        this.toneAudio.currentTime = 0;
+        this.toneAudio.loop = true;
+        this.toneAudio.src = this.voip.tones[tone];
+        this.toneAudio.play().catch((error) => this._odooScenarioPlaybackRejected(error));
+    },
+
+    setCallAudio() {
+        const stream = new MediaStream();
+        for (const receiver of this.session.sessionDescriptionHandler.peerConnection.getReceivers()) {
+            if (receiver.track) {
+                stream.addTrack(receiver.track);
+            }
+        }
+        this.callAudio.srcObject = stream;
+        this.callAudio.play().catch((error) => this._odooScenarioPlaybackRejected(error));
+    },
+
     async onInvite(...args) {
         const result = await super.onInvite(...args);
         if (!scenarioEnabled()) {
             return result;
         }
         this._odooScenarioStart();
+        if (!this._odooScenarioAudioArmed) {
+            this._odooScenarioFail("browser_audio_not_armed");
+            return result;
+        }
         await this.accept();
         return result;
     },
@@ -116,6 +145,51 @@ patch(VoipAgent.prototype, {
         return super._onHanghup(...args);
     },
 
+    _odooScenarioInstallAudioArm() {
+        if (!scenarioEnabled() || this._odooScenarioArmInstalled) {
+            return;
+        }
+        this._odooScenarioArmInstalled = true;
+        this._odooScenarioAudioArmed = false;
+        window.addEventListener("pointerdown", () => {
+            void this._odooScenarioArmAudio();
+        }, {passive: true});
+        // Headless Chrome launched with explicit autoplay permission can arm
+        // immediately. Ordinary browsers wait for the next page click.
+        void this._odooScenarioArmAudio();
+        this._odooScenarioAudioNotice = this.notification.add(
+            "ASBX scenario: click anywhere once to enable test audio.",
+            {sticky: true}
+        );
+    },
+
+    async _odooScenarioArmAudio() {
+        const context = this._odooScenarioAudioContext ||= new AudioContext();
+        try {
+            await context.resume();
+        } catch (error) {
+            this._odooScenarioAudioArmed = false;
+            console.info("ASBX scenario audio is awaiting a browser gesture", error);
+            return false;
+        }
+        this._odooScenarioAudioArmed = context.state === "running";
+        if (this._odooScenarioAudioArmed) {
+            this._odooScenarioAudioNotice?.();
+            this._odooScenarioAudioNotice = null;
+        }
+        return this._odooScenarioAudioArmed;
+    },
+
+    _odooScenarioPlaybackRejected(error) {
+        if (error?.name === "NotAllowedError") {
+            if (this._odooScenario) {
+                this._odooScenario.playback_blocked = true;
+            }
+            return;
+        }
+        console.error("Odoo VoIP audio playback failed", error);
+    },
+
     _odooScenarioStart() {
         this._odooScenarioStopListening();
         this._odooScenario = createScenarioState();
@@ -123,6 +197,8 @@ patch(VoipAgent.prototype, {
             snapshot: () => ({
                 id: this._odooScenario.id,
                 phase: this._odooScenario.phase,
+                audio_armed: this._odooScenarioAudioArmed,
+                playback_blocked: Boolean(this._odooScenario.playback_blocked),
                 started_at_ms: this._odooScenario.started_at_ms,
                 recognized_notes: [...this._odooScenario.recognized_notes],
                 last_observed_hz: this._odooScenario.last_observed_hz || null,
@@ -149,12 +225,18 @@ patch(VoipAgent.prototype, {
             this._odooScenarioFail("remote_audio_track_unavailable");
             return;
         }
-        const audioContext = new AudioContext();
+        const audioContext = this._odooScenarioAudioContext;
+        if (!audioContext || audioContext.state !== "running") {
+            this._odooScenarioFail("browser_audio_not_armed");
+            return;
+        }
         const analyser = audioContext.createAnalyser();
         analyser.fftSize = 2048;
-        audioContext.createMediaStreamSource(stream).connect(analyser);
+        const source = audioContext.createMediaStreamSource(stream);
+        source.connect(analyser);
         scenario.audio_context = audioContext;
         scenario.analyser = analyser;
+        scenario.media_source = source;
         scenario.phase = "listening";
         scenario.deadline = window.setTimeout(
             () => this._odooScenarioFail("challenge_timeout"),
@@ -219,12 +301,14 @@ patch(VoipAgent.prototype, {
             return;
         }
         try {
-            const audioContext = new AudioContext();
-            await audioContext.resume();
+            const audioContext = this._odooScenarioAudioContext;
+            if (!audioContext || audioContext.state !== "running") {
+                this._odooScenarioFail("browser_audio_not_armed");
+                return;
+            }
             const destination = audioContext.createMediaStreamDestination();
             const replyTrack = destination.stream.getAudioTracks()[0];
             await sender.replaceTrack(replyTrack);
-            scenario.reply_audio_context = audioContext;
             for (const [index, frequency] of REPLY_HZ.entries()) {
                 const start = audioContext.currentTime + index * (NOTE_SECONDS + NOTE_GAP_SECONDS);
                 const oscillator = audioContext.createOscillator();
@@ -279,13 +363,11 @@ patch(VoipAgent.prototype, {
         window.clearTimeout(scenario.deadline);
         window.clearTimeout(scenario.reply_timer);
         window.clearTimeout(scenario.hangup_timer);
-        for (const key of ["audio_context", "reply_audio_context"]) {
-            const context = scenario[key];
+        for (const key of ["media_source", "analyser"]) {
+            scenario[key]?.disconnect();
             scenario[key] = null;
-            if (context && context.state !== "closed") {
-                context.close().catch(() => {});
-            }
         }
+        scenario.audio_context = null;
         scenario.interval = null;
         scenario.deadline = null;
         scenario.reply_timer = null;
