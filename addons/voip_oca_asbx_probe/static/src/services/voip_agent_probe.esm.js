@@ -9,12 +9,13 @@
 */
 import {VoipAgent} from "@voip_oca/services/voip_agent_service.esm";
 import {patch} from "@web/core/utils/patch";
+import {session} from "@web/session";
 
 const PROBE_QUERY_PARAMETER = "asbx_probe";
 const PROBE_VERSION = "v1";
 
 function probeEnabled() {
-    return new URLSearchParams(window.location.search).get(PROBE_QUERY_PARAMETER) === "1";
+    return new URLSearchParams(window.location.search).get(PROBE_QUERY_PARAMETER) === "1" || session.asbx?.probe;
 }
 
 function numericStat(value) {

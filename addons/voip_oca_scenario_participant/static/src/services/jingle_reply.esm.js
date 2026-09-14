@@ -8,6 +8,7 @@
 */
 import {VoipAgent} from "@voip_oca/services/voip_agent_service.esm";
 import {patch} from "@web/core/utils/patch";
+import {session} from "@web/session";
 
 const SCENARIO_QUERY_PARAMETER = "odoo_scenario";
 const SCENARIO_ID = "jingle_reply_v1";
@@ -25,8 +26,8 @@ const MIN_FRACTION = 0.1;
 
 function scenarioEnabled() {
     return (
-        new URLSearchParams(window.location.search).get(SCENARIO_QUERY_PARAMETER) ===
-        SCENARIO_ID
+        new URLSearchParams(window.location.search).get(SCENARIO_QUERY_PARAMETER) === SCENARIO_ID ||
+        session.asbx?.scenario === SCENARIO_ID
     );
 }
 
