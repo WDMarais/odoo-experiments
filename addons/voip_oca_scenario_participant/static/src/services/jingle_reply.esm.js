@@ -125,6 +125,9 @@ patch(VoipAgent.prototype, {
                 phase: this._odooScenario.phase,
                 started_at_ms: this._odooScenario.started_at_ms,
                 recognized_notes: [...this._odooScenario.recognized_notes],
+                last_observed_hz: this._odooScenario.last_observed_hz || null,
+                expected_hz: CHALLENGE_HZ[this._odooScenario.recognized_notes.length] || null,
+                waiting_for_silence: Boolean(this._odooScenario.waiting_for_silence),
                 failure: this._odooScenario.failure,
                 reply_started_at_ms: this._odooScenario.reply_started_at_ms || null,
                 completed_at_ms: this._odooScenario.completed_at_ms,
@@ -171,6 +174,7 @@ patch(VoipAgent.prototype, {
         const samples = new Float32Array(scenario.analyser.fftSize);
         scenario.analyser.getFloatTimeDomainData(samples);
         const observed = recognizedTone(samples, scenario.audio_context.sampleRate);
+        scenario.last_observed_hz = observed;
         const expected = CHALLENGE_HZ[scenario.recognized_notes.length];
 
         if (scenario.waiting_for_silence) {
@@ -275,8 +279,13 @@ patch(VoipAgent.prototype, {
         window.clearTimeout(scenario.deadline);
         window.clearTimeout(scenario.reply_timer);
         window.clearTimeout(scenario.hangup_timer);
-        scenario.audio_context?.close();
-        scenario.reply_audio_context?.close();
+        for (const key of ["audio_context", "reply_audio_context"]) {
+            const context = scenario[key];
+            scenario[key] = null;
+            if (context && context.state !== "closed") {
+                context.close().catch(() => {});
+            }
+        }
         scenario.interval = null;
         scenario.deadline = null;
         scenario.reply_timer = null;
