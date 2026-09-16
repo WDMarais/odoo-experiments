@@ -8,7 +8,8 @@ specific test behavior.
 
 ``?odoo_scenario=jingle_reply_v1`` enables the first scenario.  The participant
 automatically answers an incoming call, requires three separated 659 Hz tones
-within 30 seconds, emits ``659, 784, 523, 587, 659 Hz`` only after recognition,
+within 30 seconds, then waits for trailing silence before emitting
+``659, 784, 523, 587, 659 Hz``,
 then hangs up three seconds after the reply.  A missing or malformed challenge
 ends the call at the deadline.
 

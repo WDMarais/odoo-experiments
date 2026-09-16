@@ -263,8 +263,12 @@ patch(VoipAgent.prototype, {
             if (observed === null) {
                 scenario.silence_since ??= now();
                 if (now() - scenario.silence_since >= MIN_SILENCE_MS) {
+                    const challengeComplete = scenario.recognized_notes.length === CHALLENGE_HZ.length;
                     scenario.waiting_for_silence = false;
                     scenario.candidate_since = null;
+                    if (challengeComplete) {
+                        this._odooScenarioReply();
+                    }
                 }
             } else {
                 scenario.silence_since = null;
@@ -283,9 +287,6 @@ patch(VoipAgent.prototype, {
         scenario.candidate_since = null;
         scenario.waiting_for_silence = true;
         scenario.silence_since = null;
-        if (scenario.recognized_notes.length === CHALLENGE_HZ.length) {
-            this._odooScenarioReply();
-        }
     },
 
     async _odooScenarioReply() {
