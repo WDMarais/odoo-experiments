@@ -10,5 +10,6 @@ class IrHttp(models.AbstractModel):
         result["asbx"] = {
             "probe": bool(request.session.get("asbx_probe")),
             "scenario": request.session.get("asbx_scenario"),
+            "contract": request.session.get("asbx_contract"),
         }
         return result
