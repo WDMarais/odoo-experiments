@@ -98,7 +98,11 @@ patch(VoipAgent.prototype, {
         return super.connectAgent(...args);
     },
 
-    playTone(tone) {
+    playTone(...args) {
+        if (!scenarioEnabled()) {
+            return super.playTone(...args);
+        }
+        const [tone] = args;
         // voip_oca leaves this promise unobserved. Browser autoplay policy must
         // be a test prerequisite, not an UncaughtPromiseError that aborts INVITE.
         this.toneAudio.currentTime = 0;
@@ -107,7 +111,10 @@ patch(VoipAgent.prototype, {
         this.toneAudio.play().catch((error) => this._odooScenarioPlaybackRejected(error));
     },
 
-    setCallAudio() {
+    setCallAudio(...args) {
+        if (!scenarioEnabled()) {
+            return super.setCallAudio(...args);
+        }
         const stream = new MediaStream();
         for (const receiver of this.session.sessionDescriptionHandler.peerConnection.getReceivers()) {
             if (receiver.track) {
